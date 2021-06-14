@@ -6,6 +6,7 @@ go run main.go
 ```
 
 http://localhost:3333/inject?name=tamal
+http://localhost:3333/k8s
 
 ## TODOs
 

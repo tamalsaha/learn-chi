@@ -55,7 +55,8 @@ func k8s(kc kubernetes.Interface, nodeclient corev1.NodeInterface, u User) []byt
 		panic(err)
 	}
 	buf.WriteString("k8s version = " + info.GitVersion)
-
+	buf.WriteRune('\n')
+	
 	nodes, err := nodeclient.List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		panic(err)
