@@ -2,3 +2,6 @@
 ## explicit
 github.com/go-chi/chi/v5
 github.com/go-chi/chi/v5/middleware
+# go.wandrs.dev/inject v0.0.0-20210614144114-565674c4c738
+## explicit
+go.wandrs.dev/inject
