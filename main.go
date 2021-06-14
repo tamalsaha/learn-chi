@@ -31,11 +31,11 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
 	})
-	r.Get("/inject", binding.H(hello))
+	r.Get("/inject", binding.Handler(hello))
 
 	r.With(binding.Inject(createKubeClient), binding.Map(User{
 		Name: "John",
-	})).Get("/k8s", binding.H(k8s))
+	})).Get("/k8s", binding.Handler(k8s))
 
 	log.Println("running server on :3333")
 	http.ListenAndServe(":3333", r)
@@ -56,7 +56,7 @@ func k8s(kc kubernetes.Interface, nodeclient corev1.NodeInterface, u User) []byt
 	}
 	buf.WriteString("k8s version = " + info.GitVersion)
 	buf.WriteRune('\n')
-	
+
 	nodes, err := nodeclient.List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		panic(err)

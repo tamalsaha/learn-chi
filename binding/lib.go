@@ -107,7 +107,7 @@ func Set(typ reflect.Type, val reflect.Value) func(next http.Handler) http.Handl
 }
 
 // github.com/go-macaron/macaron/return_handler.go
-func H(fn interface{}) http.HandlerFunc {
+func Handler(fn interface{}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
 		if injector == nil {
