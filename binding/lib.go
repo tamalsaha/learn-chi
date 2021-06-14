@@ -43,6 +43,20 @@ func Injector(next http.Handler) http.Handler {
 	})
 }
 
+func Inject(fn func(inject.Injector)) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
+			if injector == nil {
+				panic("chi: register Injector middleware")
+			}
+
+			fn(injector)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Maps the interface{} value based on its immediate type from reflect.TypeOf.
 func Map(val interface{}) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
