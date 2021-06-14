@@ -2,14 +2,15 @@ package binding
 
 import (
 	"context"
-	"go.wandrs.dev/inject"
 	"net/http"
 	"reflect"
 	"sync"
+
+	"go.wandrs.dev/inject"
 )
 
 var pool = sync.Pool{
-	New: func() interface{}{
+	New: func() interface{} {
 		return inject.New()
 	},
 }
@@ -40,6 +41,55 @@ func Injector(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 		pool.Put(injector)
 	})
+}
+
+// Maps the interface{} value based on its immediate type from reflect.TypeOf.
+func Map(val interface{}) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
+			if injector == nil {
+				panic("chi: register Injector middleware")
+			}
+
+			injector.Map(val)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Maps the interface{} value based on the pointer of an Interface provided.
+// This is really only useful for mapping a value as an interface, as interfaces
+// cannot at this time be referenced directly without a pointer.
+func MapTo(val interface{}, ifacePtr interface{}) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
+			if injector == nil {
+				panic("chi: register Injector middleware")
+			}
+
+			injector.MapTo(val, ifacePtr)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Provides a possibility to directly insert a mapping based on type and value.
+// This makes it possible to directly map type arguments not possible to instantiate
+// with reflect like unidirectional channels.
+func Set(typ reflect.Type, val reflect.Value) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
+			if injector == nil {
+				panic("chi: register Injector middleware")
+			}
+
+			injector.Set(typ, val)
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // github.com/go-macaron/macaron/return_handler.go

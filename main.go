@@ -18,7 +18,7 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
 	})
-	r.Get("/inject", binding.H(hello))
+	r.With().With().Get("/inject", binding.H(hello))
 
 	log.Println("running server on :3333")
 	http.ListenAndServe(":3333", r)
