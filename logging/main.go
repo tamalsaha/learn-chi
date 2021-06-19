@@ -10,6 +10,14 @@ import (
 )
 
 func main() {
+	/*
+	var geodb *geoip2.Reader
+	geodb, err := geoip2.Open("path to database file")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	*/
+
 	// Routes
 	r := chi.NewRouter()
 	r.Use(chim.RequestID)
