@@ -58,9 +58,6 @@ github.com/oklog/ulid/v2
 github.com/oschwald/geoip2-golang
 # github.com/oschwald/maxminddb-golang v1.8.0
 github.com/oschwald/maxminddb-golang
-# github.com/sirupsen/logrus v1.8.1
-## explicit
-github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
 # github.com/unrolled/render v1.4.0
