@@ -10,7 +10,7 @@ import (
 )
 
 var pool = sync.Pool{
-	New: func() interface{}{
+	New: func() interface{} {
 		return ulid.Monotonic(rand.New(rand.NewSource(time.Now().UnixNano())), 0)
 	},
 }

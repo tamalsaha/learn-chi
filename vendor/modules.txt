@@ -7,6 +7,7 @@ github.com/fsnotify/fsnotify
 github.com/go-chi/chi/v5
 github.com/go-chi/chi/v5/middleware
 # github.com/go-logr/logr v0.4.0
+## explicit
 github.com/go-logr/logr
 # github.com/go-playground/form/v4 v4.1.3
 ## explicit
@@ -52,6 +53,14 @@ github.com/modern-go/reflect2
 # github.com/oklog/ulid/v2 v2.0.2
 ## explicit
 github.com/oklog/ulid/v2
+# github.com/oschwald/geoip2-golang v1.5.0
+## explicit
+github.com/oschwald/geoip2-golang
+# github.com/oschwald/maxminddb-golang v1.8.0
+github.com/oschwald/maxminddb-golang
+# github.com/sirupsen/logrus v1.8.1
+## explicit
+github.com/sirupsen/logrus
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
 # github.com/unrolled/render v1.4.0
@@ -334,7 +343,9 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
 # k8s.io/klog/v2 v2.8.0
+## explicit
 k8s.io/klog/v2
+k8s.io/klog/v2/klogr
 # k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 k8s.io/utils/integer
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.0

@@ -7,15 +7,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"gomodules.xyz/ulids"
 )
-
-// Key to use when setting the request ID.
-type requestIDKey struct{}
-
-// RequestIDHeader is the name of the HTTP Header which contains the request id.
-// Exported so that it can be changed by developers
-var RequestIDHeader = "X-Request-Id"
 
 // RequestID is a middleware that injects a request ID into the context of each
 // request. A request ID is a string of the form "host.example.com/random-0001",
@@ -25,11 +19,11 @@ var RequestIDHeader = "X-Request-Id"
 func RequestID(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		requestID := r.Header.Get(RequestIDHeader)
+		requestID := r.Header.Get(middleware.RequestIDHeader)
 		if requestID == "" {
 			requestID = ulids.MustNew().String()
-			ctx = context.WithValue(ctx, requestIDKey{}, requestID)
 		}
+		ctx = context.WithValue(ctx, middleware.RequestIDKey, requestID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 	return http.HandlerFunc(fn)
@@ -41,7 +35,7 @@ func GetReqID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if reqID, ok := ctx.Value(requestIDKey{}).(string); ok {
+	if reqID, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
 		return reqID
 	}
 	return ""
