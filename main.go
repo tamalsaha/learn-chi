@@ -3,18 +3,19 @@ package main
 import (
 	"bytes"
 	"context"
+	"log"
+	"net/http"
+	"path/filepath"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/tamalsaha/learn-chi/binding"
+	"go.wandrs.dev/binding"
 	"go.wandrs.dev/inject"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-	"log"
-	"net/http"
-	"path/filepath"
 )
 
 type User struct {

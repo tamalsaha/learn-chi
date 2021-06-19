@@ -47,7 +47,7 @@ var decoder *form.Decoder
 func main() {
 	decoder = form.NewDecoder()
 	decoder.SetTagName("json")
-	decoder.SetMode(form.ModeExplicit)
+	// decoder.SetMode(form.ModeExplicit)
 
 	// this simulates the results of http.Request's ParseForm() function
 	values := parseForm()
