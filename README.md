@@ -12,3 +12,5 @@ http://localhost:3333/k8s
 
 - [ ] Decide how to handle return values
 - [ ] Handle Macaron style return values
+
+- [ ] RequestID using https://github.com/oklog/ulid
