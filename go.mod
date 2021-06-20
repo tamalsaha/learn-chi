@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.3
 	github.com/go-logr/logr v0.4.0
 	github.com/go-playground/form/v4 v4.1.3
+	github.com/go-playground/validator/v10 v10.6.1
 	github.com/oklog/ulid/v2 v2.0.2
 	github.com/oschwald/geoip2-golang v1.5.0
 	github.com/unrolled/render v1.4.0
