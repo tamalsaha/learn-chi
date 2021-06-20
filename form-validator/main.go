@@ -2,6 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/go-playground/form/v4"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"net/http"
+	"reflect"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -32,7 +37,7 @@ func main() {
 	validate = validator.New()
 
 	validateStruct()
-	validateVariable()
+	//validateVariable()
 }
 
 func validateStruct() {
@@ -66,17 +71,17 @@ func validateStruct() {
 
 		for _, err := range err.(validator.ValidationErrors) {
 
-			fmt.Println(err.Namespace())
-			fmt.Println(err.Field())
-			fmt.Println(err.StructNamespace())
-			fmt.Println(err.StructField())
-			fmt.Println(err.Tag())
-			fmt.Println(err.ActualTag())
-			fmt.Println(err.Kind())
-			fmt.Println(err.Type())
-			fmt.Println(err.Value())
-			fmt.Println(err.Param())
-			fmt.Println()
+			//fmt.Println(err.Namespace())
+			//fmt.Println(err.Field())
+			//fmt.Println(err.StructNamespace())
+			//fmt.Println(err.StructField())
+			//fmt.Println(err.Tag())
+			//fmt.Println(err.ActualTag())
+			//fmt.Println(err.Kind())
+			//fmt.Println(err.Type())
+			//fmt.Println(err.Value())
+			//fmt.Println(err.Param())
+			fmt.Println(err.Error())
 		}
 
 		// from here you can create your own error messages in whatever language you wish
@@ -98,4 +103,94 @@ func validateVariable() {
 	}
 
 	// email ok, move on
+}
+
+func ToAPIError(err error, obj interface{}) *apierrors.StatusError {
+	if err == nil {
+		return &apierrors.StatusError{metav1.Status{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Status",
+				APIVersion: "v1",
+			},
+			Status: metav1.StatusSuccess,
+			Code:   http.StatusOK,
+		}}
+	}
+
+	ot := reflect.TypeOf(obj)
+	if ot.Kind() == reflect.Ptr {
+		ot = ot.Elem()
+	}
+
+	switch t := err.(type) {
+	case *validator.InvalidValidationError:
+		return &apierrors.StatusError{metav1.Status{
+			Status: metav1.StatusFailure,
+			Code:   http.StatusUnprocessableEntity,
+			Reason: metav1.StatusReasonInvalid,
+			//Details: &metav1.StatusDetails{
+			//	Group:  qualifiedKind.Group,
+			//	Kind:   qualifiedKind.Kind,
+			//	Name:   name,
+			//	Causes: causes,
+			//},
+			Message: err.Error(),
+		}}
+	case validator.ValidationErrors:
+		causes := make([]metav1.StatusCause, 0, len(t))
+		for i := range t {
+			err := t[i]
+			st := metav1.CauseTypeFieldValueInvalid
+			if err.Tag() == "required" {
+				st = metav1.CauseTypeFieldValueRequired
+			}
+			causes = append(causes, metav1.StatusCause{
+				Type:    st,
+				Message: err.Error(),
+				Field:   err.Namespace(),
+			})
+		}
+		return &apierrors.StatusError{metav1.Status{
+			Status: metav1.StatusFailure,
+			Code:   http.StatusUnprocessableEntity,
+			Reason: metav1.StatusReasonInvalid,
+			Details: &metav1.StatusDetails{
+				//Group:  qualifiedKind.Group,
+				//Kind:   qualifiedKind.Kind,
+				//Name:   name,
+				Causes: causes,
+			},
+			// Message: fmt.Sprintf("%s %q is invalid: %v", qualifiedKind.String(), name, errs.ToAggregate()),
+			Message: fmt.Sprintf("%s.%s is invalid", ot.PkgPath(), ot.Name()),
+		}}
+	case form.DecodeErrors:
+		ot := reflect.TypeOf(obj)
+		if ot.Kind() == reflect.Interface {
+			ot = ot.Elem()
+		}
+		causes := make([]metav1.StatusCause, 0, len(t))
+		for field, err := range t {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: err.Error(),
+				Field:   field,
+			})
+		}
+		return &apierrors.StatusError{metav1.Status{
+			Status: metav1.StatusFailure,
+			Code:   http.StatusBadRequest,
+			Reason: metav1.StatusReasonBadRequest,
+			Details: &metav1.StatusDetails{
+				// Group:  qualifiedKind.Group,
+				//Kind:   qualifiedKind.Kind,
+				//Name:   name,
+				Causes: causes,
+			},
+			Message: fmt.Sprintf("failed to decode into %s.%s", ot.PkgPath(), ot.Name()),
+		}}
+	case *form.InvalidDecoderError:
+		return apierrors.NewInternalError(err)
+	default:
+		return apierrors.NewInternalError(err)
+	}
 }

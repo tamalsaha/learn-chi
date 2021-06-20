@@ -32,6 +32,17 @@ type statusError interface {
 
 // ErrorToAPIStatus converts an error to an metav1.Status object.
 func ErrorToAPIStatus(err error) *metav1.Status {
+	if err == nil {
+		return &metav1.Status{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Status",
+				APIVersion: "v1",
+			},
+			Status: metav1.StatusSuccess,
+			Code:   http.StatusOK,
+		}
+	}
+
 	switch t := err.(type) {
 	case statusError:
 		status := t.Status()
