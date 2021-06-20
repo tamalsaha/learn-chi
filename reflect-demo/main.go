@@ -7,6 +7,7 @@ import (
 	"go.wandrs.dev/binding"
 	httpw "go.wandrs.dev/http"
 	"go.wandrs.dev/inject"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -117,10 +118,17 @@ var (
 func main() {
 	fn := h_returns_custom_error_interface
 
-	var w http.ResponseWriter = httptest.NewRecorder()
+	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	binding.Injector(render.New())(binding.HandlerFunc(fn)).ServeHTTP(w, req)
+
+	resp := w.Result()
+	body, _ := io.ReadAll(resp.Body)
+
+	fmt.Println(resp.StatusCode)
+	fmt.Println(resp.Header.Get("Content-Type"))
+	fmt.Println(string(body))
 }
 
 func main__() {

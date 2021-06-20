@@ -170,7 +170,7 @@ func HandlerFunc(fn interface{}) http.HandlerFunc {
 			return // nothing returned, assuming function directly wrote to http.ResponseWriter
 		case 1:
 			if firstReturnIsErr {
-				err := results[0].Interface().(error)
+				err, _ := results[0].Interface().(error)
 				ww.APIError(err)
 				return
 			}
@@ -194,7 +194,7 @@ func HandlerFunc(fn interface{}) http.HandlerFunc {
 			}
 			return
 		case 2:
-			v, err := results[0], results[1].Interface().(error) // isNil vs err != nil
+			err, _ := results[1].Interface().(error)
 			if err != nil {
 				ww.APIError(err)
 				return
@@ -213,6 +213,7 @@ func HandlerFunc(fn interface{}) http.HandlerFunc {
 			//	_, _ = w.Write(respVal.Bytes())
 			//} else {
 
+			v := results[0]
 			if isByteSlice(v) {
 				_, _ = w.Write(v.Bytes())
 			} else {
