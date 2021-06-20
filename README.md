@@ -21,7 +21,9 @@ http://localhost:3333/k8s
 
 - form validation
   - https://github.com/go-playground/form
+  - form errors: https://github.com/go-playground/form/blob/master/form_decoder.go#L14-L48
   - https://github.com/go-playground/validator/blob/master/_examples/simple/main.go
+  - validator errors: https://github.com/go-playground/validator/blob/v9/errors.go#L19-L57
 
 - k8s
  - Status Error type: https://github.com/kubernetes/apimachinery/blob/v0.21.1/pkg/apis/meta/v1/types.go#L648-L898
