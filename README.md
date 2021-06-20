@@ -31,13 +31,18 @@ http://localhost:3333/k8s
 
 ## k8s apiserver
 
-- k8s.io/apiserver/pkg/endpoints/installer.go
-- k8s.io/apiserver/pkg/endpoints/groupversion.go
-- k8s.io/apiserver/pkg/endpoints/handlers/create.go
+- hadnlers
+  - k8s.io/apiserver/pkg/endpoints/installer.go
+  - k8s.io/apiserver/pkg/endpoints/groupversion.go
+  - k8s.io/apiserver/pkg/endpoints/handlers/create.go
 ---
-- k8s.io/apiserver/pkg/endpoints/handlers/negotiation/negotiate.go
-- k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/status.go
-- k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/writers.go
+- Negotaitor
+  - https://developer.mozilla.org/en-US/docs/Web/HTTP/Content_negotiation
+  - https://github.com/jchannon/negotiator
+  - k8s
+    - k8s.io/apiserver/pkg/endpoints/handlers/negotiation/negotiate.go
+    - k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/status.go
+    - k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/writers.go
 ---
-**Convert using Hub**
+**Convert using Hub / API Versioning**
 - sigs.k8s.io/controller-runtime/pkg/webhook/conversion/conversion.go
