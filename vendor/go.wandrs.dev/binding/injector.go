@@ -115,7 +115,7 @@ func Set(typ reflect.Type, val reflect.Value) func(next http.Handler) http.Handl
 
 var (
 	errorType          = reflect.TypeOf((*error)(nil)).Elem()
-	responseWriterType = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+	responseWriterType = reflect.TypeOf((*httpw.ResponseWriter)(nil)).Elem()
 )
 
 // github.com/go-macaron/macaron/return_handler.go
@@ -124,7 +124,7 @@ func HandlerFunc(fn interface{}) http.HandlerFunc {
 
 	typ := reflect.TypeOf(fn)
 	if typ.Kind() != reflect.Func {
-		panic(fmt.Sprintf("fn must be a function, found %s", typ.Kind().String()))
+		panic(fmt.Sprintf("fn %s must be a function, found %s", typ, typ.Kind()))
 	}
 	switch typ.NumOut() {
 	case 0:
@@ -134,22 +134,22 @@ func HandlerFunc(fn interface{}) http.HandlerFunc {
 		if etyp.Implements(errorType) {
 			firstReturnIsErr = true
 		} else if reflect.New(etyp).Type().Implements(errorType) {
-			panic(fmt.Sprintf("return type should be *%s to be considered an error", etyp.Name()))
+			panic(fmt.Sprintf("fn %s return type should be *%s to be considered an error", typ, etyp.Name()))
 		}
 	case 2:
 		etyp := typ.Out(1)
 		if !etyp.Implements(errorType) {
 			if reflect.New(etyp).Type().Implements(errorType) {
-				panic(fmt.Sprintf("2nd return value should be *%s to be considered an error", etyp.Name()))
+				panic(fmt.Sprintf("fn %s 2nd return value should be *%s to be considered an error", typ, etyp.Name()))
 			}
 			panic("2nd return value must implement error")
 		}
 		vtyp := typ.Out(0)
 		if vtyp.Implements(errorType) {
-			panic("1st return value must not an error")
+			panic(fmt.Sprintf("fn %s 1st return value must not an error", typ))
 		}
 	default:
-		panic(fmt.Sprintf("found %d return values, at most 2 are allowed", typ.NumOut()))
+		panic(fmt.Sprintf("fn %s has %d return values, at most 2 are allowed", typ, typ.NumOut()))
 	}
 
 	return func(w http.ResponseWriter, req *http.Request) {

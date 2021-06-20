@@ -10,7 +10,7 @@ require (
 	github.com/oklog/ulid/v2 v2.0.2
 	github.com/oschwald/geoip2-golang v1.5.0
 	github.com/unrolled/render v1.4.0
-	go.wandrs.dev/binding v0.0.0-20210620231552-66cb8961d58a
+	go.wandrs.dev/binding v0.0.0-20210620233736-4848ef60cee8
 	go.wandrs.dev/http v0.0.0-20210620094415-abb1017550b9
 	go.wandrs.dev/inject v0.0.0-20210615003440-96c9194068f9
 	gomodules.xyz/ulids v0.1.0
