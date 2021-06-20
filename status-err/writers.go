@@ -20,14 +20,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // ErrorNegotiated renders an error to the response. Returns the HTTP status code of the error.
 // The context is optional and may be nil.
-func ErrorNegotiated(err error, s runtime.NegotiatedSerializer, gv schema.GroupVersion, w http.ResponseWriter, req *http.Request) int {
+func ErrorNegotiated(err error, w http.ResponseWriter) int {
 	status := ErrorToAPIStatus(err)
 	code := int(status.Code)
 	// when writing an error, check to see if the status indicates a retry after period

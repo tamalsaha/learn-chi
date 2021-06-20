@@ -18,7 +18,10 @@
 package binding
 
 import (
+	httpw "go.wandrs.dev/http"
 	"io"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"reflect"
 	"strings"
@@ -41,63 +44,48 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 // Form or Json middleware directly. An interface pointer can
 // be added as a second argument in order to map the struct to
 // a specific interface.
-func Bind(req *http.Request, obj interface{}) func(next http.Handler) http.Handler {
+func Bind(obj interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			contentType := req.Header.Get("Content-Type")
-			if req.Method == http.MethodPost || req.Method == http.MethodPut || len(contentType) > 0 {
+			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
+			if injector == nil {
+				panic("chi: register Injector middleware")
+			}
+
+			var err *apierrors.StatusError
+			contentType := r.Header.Get("Content-Type")
+			if r.Method == http.MethodPost || r.Method == http.MethodPut || len(contentType) > 0 {
 				switch {
 				case strings.Contains(contentType, "form-urlencoded"):
-					Form(req, obj)
+					err = bindForm(r, injector, obj, ifacePtr...)
 				case strings.Contains(contentType, "multipart/form-data"):
-					MultipartForm(req, obj)
+					err = bindMultipartForm(r, injector, obj, ifacePtr...)
 				case strings.Contains(contentType, "json"):
-					JSON(req, obj)
+					err = bindJSON(r, injector, obj, ifacePtr...)
 				default:
-					var errors Errors
-					if contentType == "" {
-						errors.Add([]string{}, ERR_CONTENT_TYPE, "Empty Content-Type")
-					} else {
-						errors.Add([]string{}, ERR_CONTENT_TYPE, "Unsupported Content-Type")
+					status := metav1.Status{
+						Status: metav1.StatusFailure,
+						Code:   http.StatusUnsupportedMediaType,
+						Reason: metav1.StatusReasonUnsupportedMediaType,
 					}
-
-					// handle error
-					errorHandler(errors, w)
+					if contentType == "" {
+						status.Message = "Empty Content-Type"
+					} else {
+						status.Message = "Unsupported Content-Type"
+					}
+					err = &apierrors.StatusError{status}
 				}
 			} else {
-				Form(req, obj)
+				err = bindForm(r, injector, obj, ifacePtr...)
 			}
+
+			if err != nil {
+				ww := injector.GetVal(reflect.TypeOf((httpw.ResponseWriter)(nil))).Interface().(httpw.ResponseWriter)
+				ww.APIError(err)
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
-	}
-}
-
-const (
-	_JSON_CONTENT_TYPE          = "application/json; charset=utf-8"
-	STATUS_UNPROCESSABLE_ENTITY = 422
-)
-
-// errorHandler simply counts the number of errors in the
-// context and, if more than 0, writes a response with an
-// error code and a JSON payload describing the errors.
-// The response will have a JSON content-type.
-// Middleware remaining on the stack will not even see the request
-// if, by this point, there are any errors.
-// This is a "default" handler, of sorts, and you are
-// welcome to use your own instead. The Bind middleware
-// invokes this automatically for convenience.
-func errorHandler(errs Errors, rw http.ResponseWriter) {
-	if len(errs) > 0 {
-		rw.Header().Set("Content-Type", _JSON_CONTENT_TYPE)
-		if errs.Has(ERR_DESERIALIZATION) {
-			rw.WriteHeader(http.StatusBadRequest)
-		} else if errs.Has(ERR_CONTENT_TYPE) {
-			rw.WriteHeader(http.StatusUnsupportedMediaType)
-		} else {
-			rw.WriteHeader(STATUS_UNPROCESSABLE_ENTITY)
-		}
-		errOutput, _ := json.Marshal(errs)
-		rw.Write(errOutput)
-		return
 	}
 }
 
@@ -110,50 +98,45 @@ func errorHandler(errs Errors, rw http.ResponseWriter) {
 // keys, for example: key=val1&key=val2&key=val3
 // An interface pointer can be added as a second argument in order
 // to map the struct to a specific interface.
-func Form(formStruct interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
+func Form(obj interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
 			if injector == nil {
 				panic("chi: register Injector middleware")
 			}
-
-			var errors Errors
-
-			ensureNotPointer(formStruct)
-			formStruct := reflect.New(reflect.TypeOf(formStruct))
-			parseErr := r.ParseForm()
-
-			// Format validation of the request body or the URL would add considerable overhead,
-			// and ParseForm does not complain when URL encoding is off.
-			// Because an empty request body or url can also mean absence of all needed values,
-			// it is not in all cases a bad request, so let's return 422.
-			if parseErr != nil {
-				errors.Add([]string{}, ERR_DESERIALIZATION, parseErr.Error())
+			if err := bindForm(r, injector, obj, ifacePtr...); err != nil {
+				ww := injector.GetVal(reflect.TypeOf((httpw.ResponseWriter)(nil))).Interface().(httpw.ResponseWriter)
+				ww.APIError(err)
+				return
 			}
-
-			// errors = mapForm(formStruct, r.Form, nil, errors)
-			// validateAndMap(formStruct, ctx, errors, ifacePtr...)
-
-			d := form.NewDecoder()
-			if err := d.Decode(formStruct.Interface(), r.Form); err != nil {
-				errors.Add([]string{}, "BAD_INPUT", err.Error())
-			}
-
-			if err := validate.Struct(formStruct.Interface()); err != nil {
-				// errors = append(errors, err)
-				// render error to the end user
-			}
-
-			//injector.Invoke(Validate(formStruct.Interface()))
-			//errors = append(errors, getErrors(ctx)...)
-			//injector.Map(errors)
-			injector.Map(formStruct.Elem().Interface())
-			if len(ifacePtr) > 0 {
-				injector.MapTo(formStruct.Elem().Interface(), ifacePtr[0])
-			}
+			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func bindForm(r *http.Request, injector inject.Injector, obj interface{}, ifacePtr ...interface{}) *apierrors.StatusError {
+	ensureNotPointer(obj)
+	formStruct := reflect.New(reflect.TypeOf(obj))
+
+	if err := r.ParseForm(); err != nil {
+		return apierrors.NewBadRequest(err.Error())
+	}
+
+	d := form.NewDecoder()
+	if err := d.Decode(formStruct.Interface(), r.Form); err != nil {
+		return NewBindingError(err, obj)
+	}
+
+	if err := validate.Struct(formStruct.Interface()); err != nil {
+		return NewBindingError(err, obj)
+	}
+
+	injector.Map(formStruct.Elem().Interface())
+	if len(ifacePtr) > 0 {
+		injector.MapTo(formStruct.Elem().Interface(), ifacePtr[0])
+	}
+	return nil
 }
 
 // MaxMemory represents maximum amount of memory to use when parsing a multipart form.
@@ -164,61 +147,48 @@ var MaxMemory = int64(1024 * 1024 * 10)
 // and handle file uploads. Like the other deserialization middleware handlers,
 // you can pass in an interface to make the interface available for injection
 // into other handlers later.
-func MultipartForm(formStruct interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
+func MultipartForm(obj interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
 			if injector == nil {
 				panic("chi: register Injector middleware")
 			}
-
-			var errors Errors
-			ensureNotPointer(formStruct)
-			formStruct := reflect.New(reflect.TypeOf(formStruct))
-			// This if check is necessary due to https://github.com/martini-contrib/csrf/issues/6
-			if r.MultipartForm == nil {
-				// Workaround for multipart forms returning nil instead of an error
-				// when content is not multipart; see https://code.google.com/p/go/issues/detail?id=6334
-				if multipartReader, err := r.MultipartReader(); err != nil {
-					errors.Add([]string{}, ERR_DESERIALIZATION, err.Error())
-				} else {
-					f, parseErr := multipartReader.ReadForm(MaxMemory)
-					if parseErr != nil {
-						errors.Add([]string{}, ERR_DESERIALIZATION, parseErr.Error())
-					}
-
-					if r.Form == nil {
-						r.ParseForm()
-					}
-					for k, v := range f.Value {
-						r.Form[k] = append(r.Form[k], v...)
-					}
-
-					r.MultipartForm = f
-				}
+			if err := bindMultipartForm(r, injector, obj, ifacePtr...); err != nil {
+				ww := injector.GetVal(reflect.TypeOf((httpw.ResponseWriter)(nil))).Interface().(httpw.ResponseWriter)
+				ww.APIError(err)
+				return
 			}
-			// errors = mapForm(formStruct, r.MultipartForm.Value, r.MultipartForm.File, errors)
-			// validateAndMap(formStruct, ctx, errors, ifacePtr...)
-
-			d := form.NewDecoder()
-			if err := d.Decode(formStruct.Interface(), r.Form); err != nil {
-				errors.Add([]string{}, "BAD_INPUT", err.Error())
-			}
-
-			if err := validate.Struct(formStruct.Interface()); err != nil {
-				// errors = append(errors, err)
-				// render error to the end user
-			}
-
-			//injector.Invoke(Validate(formStruct.Interface()))
-			//errors = append(errors, getErrors(injector)...)
-			//injector.Map(errors)
-			injector.Map(formStruct.Elem().Interface())
-			if len(ifacePtr) > 0 {
-				injector.MapTo(formStruct.Elem().Interface(), ifacePtr[0])
-			}
+			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func bindMultipartForm(r *http.Request, injector inject.Injector, obj interface{}, ifacePtr ...interface{}) *apierrors.StatusError {
+	ensureNotPointer(obj)
+
+	formStruct := reflect.New(reflect.TypeOf(obj))
+	// This if check is necessary due to https://github.com/martini-contrib/csrf/issues/6
+	if r.Form == nil {
+		if err := r.ParseMultipartForm(MaxMemory); err != nil {
+			return apierrors.NewBadRequest(err.Error())
+		}
+	}
+
+	d := form.NewDecoder()
+	if err := d.Decode(formStruct.Interface(), r.Form); err != nil {
+		return NewBindingError(err, obj)
+	}
+
+	if err := validate.Struct(formStruct.Interface()); err != nil {
+		return NewBindingError(err, obj)
+	}
+
+	injector.Map(formStruct.Elem().Interface())
+	if len(ifacePtr) > 0 {
+		injector.MapTo(formStruct.Elem().Interface(), ifacePtr[0])
+	}
+	return nil
 }
 
 // JSON is middleware to deserialize a JSON payload from the request
@@ -234,53 +204,53 @@ func MultipartForm(formStruct interface{}, ifacePtr ...interface{}) func(next ht
 //
 // Json follows the Request.ParseForm() method from Go's net/http library.
 // ref: https://github.com/golang/go/blob/700e969d5b23732179ea86cfe67e8d1a0a1cc10a/src/net/http/request.go#L1176
-func JSON(jsonStruct interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
+func JSON(obj interface{}, ifacePtr ...interface{}) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			injector, _ := r.Context().Value(injectorKey{}).(inject.Injector)
 			if injector == nil {
 				panic("chi: register Injector middleware")
 			}
-
-			var errors Errors
-			ensureNotPointer(jsonStruct)
-			jsonStruct := reflect.New(reflect.TypeOf(jsonStruct))
-			var err error
-			if r.URL != nil {
-				if params := r.URL.Query(); len(params) > 0 {
-					d := form.NewDecoder()
-					d.SetTagName("json")
-					err = d.Decode(jsonStruct.Interface(), params)
-				}
+			if err := bindJSON(r, injector, obj, ifacePtr...); err != nil {
+				ww := injector.GetVal(reflect.TypeOf((httpw.ResponseWriter)(nil))).Interface().(httpw.ResponseWriter)
+				ww.APIError(err)
+				return
 			}
-			if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
-				if r.Body != nil {
-					v := jsonStruct.Interface()
-					e := json.NewDecoder(r.Body).Decode(v)
-					if err == nil {
-						err = e
-					}
-				}
-			}
-			if err != nil && err != io.EOF {
-				errors.Add([]string{}, ERR_DESERIALIZATION, err.Error())
-			}
-
-			if err = validate.Struct(jsonStruct.Interface()); err != nil {
-				// errors = append(errors, err)
-				// render error to the end user
-			}
-
-			//validateAndMap(jsonStruct, ctx, errors, ifacePtr...)
-			//ctx.Invoke(Validate(jsonStruct.Interface()))
-			//errors = append(errors, getErrors(ctx)...)
-			//injector.Map(errors)
-			injector.Map(jsonStruct.Elem().Interface())
-			if len(ifacePtr) > 0 {
-				injector.MapTo(jsonStruct.Elem().Interface(), ifacePtr[0])
-			}
+			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func bindJSON(r *http.Request, injector inject.Injector, obj interface{}, ifacePtr ...interface{}) *apierrors.StatusError {
+	ensureNotPointer(obj)
+	jsonStruct := reflect.New(reflect.TypeOf(obj))
+
+	if r.URL != nil {
+		if params := r.URL.Query(); len(params) > 0 {
+			d := form.NewDecoder()
+			d.SetTagName("json")
+			if err := d.Decode(jsonStruct.Interface(), params); err != nil {
+				return NewBindingError(err, obj)
+			}
+		}
+	}
+	if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch {
+		if r.Body != nil {
+			if err := json.NewDecoder(r.Body).Decode(jsonStruct.Interface()); err != nil && err != io.EOF {
+				return apierrors.NewBadRequest(err.Error())
+			}
+		}
+	}
+
+	if err := validate.Struct(jsonStruct.Interface()); err != nil {
+		return NewBindingError(err, obj)
+	}
+
+	injector.Map(jsonStruct.Elem().Interface())
+	if len(ifacePtr) > 0 {
+		injector.MapTo(jsonStruct.Elem().Interface(), ifacePtr[0])
+	}
+	return nil
 }
 
 // Don't pass in pointers to bind to. Can lead to bugs.
@@ -289,30 +259,3 @@ func ensureNotPointer(obj interface{}) {
 		panic("Pointers are not accepted as binding models")
 	}
 }
-
-// Pointers must be bind to.
-func ensurePointer(obj interface{}) {
-	if reflect.TypeOf(obj).Kind() != reflect.Ptr {
-		panic("Pointers are only accepted as binding models")
-	}
-}
-
-type (
-	// ErrorHandler is the interface that has custom error handling process.
-	ErrorHandler interface {
-		// Error handles validation errors with custom process.
-		Error(*http.Request, Errors)
-	}
-
-	// Validator is the interface that handles some rudimentary
-	// request validation logic so your application doesn't have to.
-	Validator interface {
-		// Validate validates that the request is OK. It is recommended
-		// that validation be limited to checking values for syntax and
-		// semantics, enough to know that you can make sense of the request
-		// in your application. For example, you might verify that a credit
-		// card number matches a valid pattern, but you probably wouldn't
-		// perform an actual credit card authorization here.
-		Validate(*http.Request, Errors) Errors
-	}
-)

@@ -1,7 +1,7 @@
-package main
+package binding
 
 import (
-	"encoding/json"
+	gojson "encoding/json"
 	"fmt"
 	"github.com/go-playground/form/v4"
 	"github.com/go-playground/validator/v10"
@@ -87,7 +87,7 @@ func NewBindingError(err error, obj interface{}) *apierrors.StatusError {
 			},
 			Message: fmt.Sprintf("failed to decode into %s", reflect.TypeOf(obj)),
 		}}
-	case *form.InvalidDecoderError, *json.InvalidUnmarshalError:
+	case *form.InvalidDecoderError, *gojson.InvalidUnmarshalError:
 		return apierrors.NewInternalError(err) // error due to bug in source code
 	default:
 		return apierrors.NewBadRequest(err.Error()) // error due to bad input from request body

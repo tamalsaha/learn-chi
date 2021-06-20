@@ -2,6 +2,7 @@ package binding
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"reflect"
 	"sync"
@@ -112,46 +113,114 @@ func Set(typ reflect.Type, val reflect.Value) func(next http.Handler) http.Handl
 	}
 }
 
+var (
+	errorType          = reflect.TypeOf((*error)(nil)).Elem()
+	responseWriterType = reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
+)
+
 // github.com/go-macaron/macaron/return_handler.go
-func Handler(fn interface{}) http.HandlerFunc {
+func HandlerFunc(fn interface{}) http.HandlerFunc {
+	firstReturnIsErr := false
+
+	typ := reflect.TypeOf(fn)
+	if typ.Kind() != reflect.Func {
+		panic(fmt.Sprintf("fn must be a function, found %s", typ.Kind().String()))
+	}
+	switch typ.NumOut() {
+	case 0:
+		// nothing more to check
+	case 1:
+		etyp := typ.Out(0)
+		if etyp.Implements(errorType) {
+			firstReturnIsErr = true
+		} else if reflect.New(etyp).Type().Implements(errorType) {
+			panic(fmt.Sprintf("return type should be *%s to be considered an error", etyp.Name()))
+		}
+	case 2:
+		etyp := typ.Out(1)
+		if !etyp.Implements(errorType) {
+			if reflect.New(etyp).Type().Implements(errorType) {
+				panic(fmt.Sprintf("2nd return value should be *%s to be considered an error", etyp.Name()))
+			}
+			panic("2nd return value must implement error")
+		}
+		vtyp := typ.Out(0)
+		if vtyp.Implements(errorType) {
+			panic("1st return value must not an error")
+		}
+	default:
+		panic(fmt.Sprintf("found %d return values, at most 2 are allowed", typ.NumOut()))
+	}
+
 	return func(w http.ResponseWriter, req *http.Request) {
 		injector, _ := req.Context().Value(injectorKey{}).(inject.Injector)
 		if injector == nil {
 			panic("chi: register Injector middleware")
 		}
-		vals, err := injector.Invoke(fn)
+		injector.Map(req.Context()) // make sure we have the latest Context
+
+		results, err := injector.Invoke(fn)
 		if err != nil {
-			panic(err)
+			panic(fmt.Sprintf("failed to invoke %s, reason: %v", typ.String(), err))
 		}
 
-		var respVal reflect.Value
-		if len(vals) > 1 && vals[0].Kind() == reflect.Int {
-			w.WriteHeader(int(vals[0].Int()))
-			respVal = vals[1]
-		} else if len(vals) > 0 {
-			respVal = vals[0]
-
-			if isError(respVal) {
-				err := respVal.Interface().(error)
-				if err != nil {
-					// ctx.internalServerError(ctx, err)
-					w.WriteHeader(http.StatusInternalServerError)
-					_, _ = w.Write([]byte(err.Error()))
-				}
+		ww := injector.GetVal(responseWriterType).Interface().(httpw.ResponseWriter)
+		switch len(results) {
+		case 0:
+			return // nothing returned, assuming function directly wrote to http.ResponseWriter
+		case 1:
+			if firstReturnIsErr {
+				err := results[0].Interface().(error)
+				ww.APIError(err)
 				return
-			} else if canDeref(respVal) {
-				if respVal.IsNil() {
-					return // Ignore nil error
-				}
 			}
-		}
-		if canDeref(respVal) {
-			respVal = respVal.Elem()
-		}
-		if isByteSlice(respVal) {
-			_, _ = w.Write(respVal.Bytes())
-		} else {
-			_, _ = w.Write([]byte(respVal.String()))
+
+			// ELSE,
+			// write val[0] in JSON (use content negotiation in future)
+			// nil object
+			// nil slice
+			// []byte
+			// primitive types
+			// objects
+			// slices
+
+			// isNil() ???
+
+			v := results[0]
+			if isByteSlice(v) {
+				_, _ = w.Write(v.Bytes())
+			} else {
+				ww.JSON(http.StatusOK, v.Interface())
+			}
+			return
+		case 2:
+			v, err := results[0], results[1].Interface().(error) // isNil vs err != nil
+			if err != nil {
+				ww.APIError(err)
+				return
+			}
+
+			// if err == nil
+			// write val[0] in JSON (use content negotiation in future)
+			// nil object
+			// nil slice
+			// []byte
+			// primitive types
+			// objects
+			// slices
+
+			//if isByteSlice(respVal) {
+			//	_, _ = w.Write(respVal.Bytes())
+			//} else {
+
+			if isByteSlice(v) {
+				_, _ = w.Write(v.Bytes())
+			} else {
+				ww.JSON(http.StatusOK, v.Interface())
+			}
+			return
+		default:
+			panic(fmt.Sprintf("received %d return values, can only handle upto 2 return values", len(results)))
 		}
 	}
 }

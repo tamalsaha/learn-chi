@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/go-playground/form/v4"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -105,7 +106,7 @@ func validateVariable() {
 	// email ok, move on
 }
 
-func ToAPIError(err error, obj interface{}) *apierrors.StatusError {
+func NewBindingError(err error, obj interface{}) *apierrors.StatusError {
 	if err == nil {
 		return &apierrors.StatusError{metav1.Status{
 			TypeMeta: metav1.TypeMeta{
@@ -115,11 +116,6 @@ func ToAPIError(err error, obj interface{}) *apierrors.StatusError {
 			Status: metav1.StatusSuccess,
 			Code:   http.StatusOK,
 		}}
-	}
-
-	ot := reflect.TypeOf(obj)
-	if ot.Kind() == reflect.Ptr {
-		ot = ot.Elem()
 	}
 
 	switch t := err.(type) {
@@ -161,7 +157,7 @@ func ToAPIError(err error, obj interface{}) *apierrors.StatusError {
 				Causes: causes,
 			},
 			// Message: fmt.Sprintf("%s %q is invalid: %v", qualifiedKind.String(), name, errs.ToAggregate()),
-			Message: fmt.Sprintf("%s.%s is invalid", ot.PkgPath(), ot.Name()),
+			Message: fmt.Sprintf("%s is invalid", reflect.TypeOf(obj)),
 		}}
 	case form.DecodeErrors:
 		ot := reflect.TypeOf(obj)
@@ -186,11 +182,11 @@ func ToAPIError(err error, obj interface{}) *apierrors.StatusError {
 				//Name:   name,
 				Causes: causes,
 			},
-			Message: fmt.Sprintf("failed to decode into %s.%s", ot.PkgPath(), ot.Name()),
+			Message: fmt.Sprintf("failed to decode into %s", reflect.TypeOf(obj)),
 		}}
-	case *form.InvalidDecoderError:
-		return apierrors.NewInternalError(err)
+	case *form.InvalidDecoderError, *json.InvalidUnmarshalError:
+		return apierrors.NewInternalError(err) // error due to bug in source code
 	default:
-		return apierrors.NewInternalError(err)
+		return apierrors.NewBadRequest(err.Error()) // error due to bad input from request body
 	}
 }

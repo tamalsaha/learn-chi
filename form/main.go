@@ -206,7 +206,7 @@ func main() {
 	print2(&User{})
 }
 
-func print2(obj interface{})  {
+func print2(obj interface{}) {
 	ot := reflect.TypeOf(obj)
 	if ot.Kind() == reflect.Ptr {
 		fmt.Println(ot.String())

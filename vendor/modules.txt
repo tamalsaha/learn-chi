@@ -64,10 +64,11 @@ github.com/spf13/pflag
 # github.com/unrolled/render v1.4.0
 ## explicit
 github.com/unrolled/render
-# go.wandrs.dev/binding v0.0.0-20210617015024-0f8b402e43db
+# go.wandrs.dev/binding v0.0.0-20210620231552-66cb8961d58a
 ## explicit
 go.wandrs.dev/binding
-# go.wandrs.dev/http v0.0.0-20210617014806-9ad5d43a2f77
+# go.wandrs.dev/http v0.0.0-20210620094415-abb1017550b9
+## explicit
 go.wandrs.dev/http
 # go.wandrs.dev/inject v0.0.0-20210615003440-96c9194068f9
 ## explicit
