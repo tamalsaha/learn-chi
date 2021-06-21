@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/unrolled/render"
 	"go.wandrs.dev/binding"
@@ -22,72 +22,74 @@ type errorWrapper interface {
 	error
 }
 
-func h_no_return(ctx context.Context) {
+func h_no_return() {
 
 }
 
-func h_returns_error(ctx context.Context) error {
+func h_returns_error() error {
 	return nil
 }
 
 var _ error = &fs.PathError{}
 
-func h_returns_custom_error(ctx context.Context) *fs.PathError {
+func h_returns_custom_error() *fs.PathError {
 	return nil
 }
 
-func h_returns_custom_error_ptr(ctx context.Context) fs.PathError {
+func h_returns_custom_error_ptr() fs.PathError {
 	return fs.PathError{}
 }
 
-func h_returns_custom_error_interface(ctx context.Context) errorWrapper {
+func h_returns_custom_error_interface() errorWrapper {
 	return nil
 }
 
-func h_returns_string(ctx context.Context) string {
+func h_returns_string() string {
 	return "handler"
 }
 
-func h_returns_int(ctx context.Context) int {
+func h_returns_int() int {
 	return 69
 }
 
-func h_returns_bool(ctx context.Context) bool {
+func h_returns_bool() bool {
 	return true
 }
 
-func h_returns_byte_array(ctx context.Context) []byte {
+func h_returns_byte_array() []byte {
 	return []byte("handler")
 }
 
-func h_returns_string_array(ctx context.Context) []string {
-	return []string{"handler"}
+func h_returns_string_array() []string {
+	// return []string{"handler"}
+	// return []string{}
+	return nil
 }
 
-func h_returns_int_array(ctx context.Context) []int {
+func h_returns_int_array() []int {
 	return []int{69}
 }
 
-func h_returns_bool_array(ctx context.Context) []bool {
+func h_returns_bool_array() []bool {
 	return []bool{true}
 }
 
-func h_returns_struct(ctx context.Context) Person {
+func h_returns_struct() Person {
 	return Person{Name: "John"}
 }
 
-func h_returns_slice(ctx context.Context) []Person {
+func h_returns_slice() []Person {
 	return []Person{
 		{Name: "John"},
 		{Name: "Jane"},
 	}
 }
 
-func h_returns_struct_err(ctx context.Context) (Person, error) {
+func h_returns_struct_err() (Person, error) {
 	return Person{Name: "John"}, nil
 }
 
-func h_returns_too_many_returns(ctx context.Context) (int, Person, error) {
+func h_returns_too_many_returns() (int, Person, error) {
 	return http.StatusOK, Person{Name: "John"}, nil
 }
 
@@ -116,7 +118,10 @@ var (
 )
 
 func main() {
-	fn := h_returns_custom_error_interface
+	// fn := h_returns_custom_error_interface
+	fn := h_returns_string_array
+	data, _ := json.Marshal(fn())
+	fmt.Println(string(data))
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
